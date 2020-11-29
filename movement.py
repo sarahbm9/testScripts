@@ -1,6 +1,9 @@
 import paho.mqtt.client as mqtt
+import json
+import numpy as np
 import math
 import time
+import matplotlib.pyplot as plt
 
 def closest(lst, K): 
     return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))] 
@@ -10,15 +13,15 @@ class Navigation:
         self.currentPos = (0,0)
         self.currentMove = (3,0)
         self.goalPos = (10,30)
-        self.goalPosPolar = (math.tan(self.goalPos(1)-self.currentPos(1)/(self.goalPos(0)-self.currentPos(0))), math.sqrt((self.goalPos(0)-self.currentPos(0))**2 + (self.goaPos(1)-self.currentPos(1))**2))
-        self.angleVec = [-90 -60 -30 0 30 60 90]
+        self.goalPosPolar = (math.tan(self.goalPos[1]-self.currentPos[1]/(self.goalPos[0]-self.currentPos[0])), math.sqrt((self.goalPos[0]-self.currentPos[0])**2 + (self.goalPos[1]-self.currentPos[1])**2))
+        self.angleVec = [-90, -60, -30, 0, 30, 60, 90]
         
     def decideMovement(self, distance, angle):
         #THIS WILL DECIDE NEXT MOVE need to update currentPos, and curentMove
         maxD = max(distance)
         maxIndex = distance.index(maxD)
-        self.goalPosPolar = (math.tan(self.goalPos(1)-self.currentPos(1)/(self.goalPos(0)-self.currentPos(0))), math.sqrt((self.goalPos(0)-self.currentPos(0))**2 + (self.goaPos(1)-self.currentPos(1))**2))
-        angVal = cosest(self.angleVec, self.goalPosPolar(0))
+        self.goalPosPolar = (math.tan(self.goalPos[1]-self.currentPos[1]/(self.goalPos[0]-self.currentPos[0])), math.sqrt((self.goalPos[0]-self.currentPos[0])**2 + (self.goalPos[1]-self.currentPos[1])**2))
+        angVal = closest(self.angleVec, self.goalPosPolar[0])
         angValInd = self.angleVec.index(angVal)
         testVec = []
         distVec = []
@@ -35,7 +38,7 @@ class Navigation:
             distVec.append(distance[ind])
         
         minVal = min(distVec)
-        maxVal = max(distVac)
+        maxVal = max(distVec)
         if minVal > 0.8*maxVal:
             self.currentMove = (angle[maxIndex], distance[maxIndex])
         elif distance[angValInd] > 0.9*maxVal:
@@ -43,7 +46,7 @@ class Navigation:
         else:
             maxTestInd = distance.index(maxVal)
             self.currentMove = (angle[maxTestInd], distance[maxTestInd])
-        self.currentPos = (self.currentMove(1)*math.cos(math.pi/180*self.currentMove(0)),self.currentMove(1)*math.sin(math.pi/180*self.currentMove(0)))
+        self.currentPos = (self.currentMove[1]*math.cos(math.pi/180*self.currentMove[0]),self.currentMove[1]*math.sin(math.pi/180*self.currentMove[0]))
 
 
     
@@ -79,11 +82,13 @@ class MQTThandler:
         angle_hold = [angle_val["ang0"]*np.pi/180, angle_val["ang30"]*np.pi/180, angle_val["ang60"]*np.pi/180, angle_val["ang90"]*np.pi/180, angle_val["ang120"]*np.pi/180, angle_val["ang150"]*np.pi/180, angle_val["ang1800"]*np.pi/180 ]
         if sum(isGoal_hold) == 0:
             self.nav.decideMovement(distance_hold, angle_hold)
-            self.client.publish("cc32xx/navigation", '{"state": no goal found, "distance": '+str(self.nav.curentMove(0))', "angle":'+str(self.nav.curentMove(1))+'}')
+            self.client.publish("cc32xx/mapOut", '{"state": no goal found, "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
         else:
             index = isGoal_hold.index(1)
             self.nav.currentMove = (angle_hold[index], distance_hold[index])
-            self.client.publish("cc32xx/navigation", '{"state": goal found, "distance": '+str(self.nav.curentMove(0))', "angle":'+str(self.nav.curentMove(1))+'}')
+            self.client.publish("cc32xx/mapOut", '{"state": goal found, "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
 
 if __name__ == "__main__":
     mt = MQTThandler()
+    while 1:
+        time.sleep(0.1)
