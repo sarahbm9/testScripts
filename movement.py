@@ -79,7 +79,7 @@ class MQTThandler:
         angle_hold = [0.0,np.pi/6,np.pi/3,np.pi/2,2*np.pi/3,5*np.pi/6,np.pi]
         distance_hold = [angle_val["d0"], angle_val["d30"], angle_val["d60"], angle_val["d90"], angle_val["d120"], angle_val["d150"], angle_val["d180"]]
         isGoal_hold = [angle_val["isG0"], angle_val["isG30"], angle_val["isG60"], angle_val["isG90"], angle_val["isG120"], angle_val["isG150"], angle_val["isG180"]]
-        angle_hold = [angle_val["ang0"]*np.pi/180, angle_val["ang30"]*np.pi/180, angle_val["ang60"]*np.pi/180, angle_val["ang90"]*np.pi/180, angle_val["ang120"]*np.pi/180, angle_val["ang150"]*np.pi/180, angle_val["ang1800"]*np.pi/180 ]
+        angle_hold = [angle_val["ang0"], angle_val["ang30"], angle_val["ang60"], angle_val["ang90"], angle_val["ang120"], angle_val["ang150"], angle_val["ang1800"]]
         if sum(isGoal_hold) == 0:
             self.nav.decideMovement(distance_hold, angle_hold)
             self.client.publish("cc32xx/mapOut", '{"state": no goal found, "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
