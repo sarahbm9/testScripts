@@ -10,7 +10,10 @@ client.connect("m16.cloudmqtt.com", port=18367)
 print("sending...")
 
 
-client.publish("cc32xx/mapOut", '{"state": no goal found, "distance": 2000, "angle":0.3556981015564444}')
+client.publish("cc32xx/mapOut", '{"state": "no goal found", "distance": 2000, "angle":60}')
 print("sent map out")
+time.sleep(3)
+client.publish("cc32xx/RoverReady", '{"Rover Ready"}')
+
 
 client.disconnect()
