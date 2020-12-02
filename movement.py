@@ -11,16 +11,17 @@ def closest(lst, K):
 class Navigation:
     def __init__(self):
         self.currentPos = (0,0)
-        self.currentMove = (3,0)
+        self.currentMove = (0,0)
         self.goalPos = (10,30)
-        self.goalPosPolar = (math.tan(self.goalPos[1]-self.currentPos[1]/(self.goalPos[0]-self.currentPos[0])), math.sqrt((self.goalPos[0]-self.currentPos[0])**2 + (self.goalPos[1]-self.currentPos[1])**2))
+        self.goalPosPolar = (180/np.pi*math.atan2(self.goalPos[1],self.goalPos[0]), math.sqrt((self.goalPos[0])**2 + (self.goalPos[1])**2))
+        print(self.goalPosPolar)
         self.angleVec = [-90, -60, -30, 0, 30, 60, 90]
         
     def decideMovement(self, distance, angle):
         #THIS WILL DECIDE NEXT MOVE need to update currentPos, and curentMove
         maxD = max(distance)
         maxIndex = distance.index(maxD)
-        self.goalPosPolar = (math.tan(self.goalPos[1]-self.currentPos[1]/(self.goalPos[0]-self.currentPos[0])), math.sqrt((self.goalPos[0]-self.currentPos[0])**2 + (self.goalPos[1]-self.currentPos[1])**2))
+        self.goalPosPolar = (180/np.pi*math.atan2(self.goalPos[1],(self.goalPos[0])), math.sqrt((self.goalPos[0])**2 + (self.goalPos[1])**2))
         angVal = closest(self.angleVec, self.goalPosPolar[0])
         angValInd = self.angleVec.index(angVal)
         testVec = []
@@ -28,7 +29,7 @@ class Navigation:
         testVec.append(angValInd)
         if angVal == 0:
             testVec.append(angValInd + 1)
-        elif angVec == len(self.angleVec):
+        elif angVal == len(self.angleVec):
             testVec.append(angValInd-1)
         else:
             testVec.append(angValInd-1)
@@ -38,7 +39,9 @@ class Navigation:
             distVec.append(distance[ind])
         
         minVal = min(distVec)
+        print(minVal)
         maxVal = max(distVec)
+        print(maxVal)
         if minVal > 0.8*maxVal:
             self.currentMove = (angle[maxIndex], distance[maxIndex])
         elif distance[angValInd] > 0.9*maxVal:
@@ -46,7 +49,7 @@ class Navigation:
         else:
             maxTestInd = distance.index(maxVal)
             self.currentMove = (angle[maxTestInd], distance[maxTestInd])
-        self.currentPos = (self.currentMove[1]*math.cos(math.pi/180*self.currentMove[0]),self.currentMove[1]*math.sin(math.pi/180*self.currentMove[0]))
+        #self.currentPos = (self.currentMove[1]*math.cos(math.pi/180*self.currentMove[0]),self.currentMove[1]*math.sin(math.pi/180*self.currentMove[0]))
 
 
     
@@ -82,11 +85,11 @@ class MQTThandler:
         angle_hold = [angle_val["ang0"], angle_val["ang30"], angle_val["ang60"], angle_val["ang90"], angle_val["ang120"], angle_val["ang150"], angle_val["ang1800"]]
         if sum(isGoal_hold) == 0:
             self.nav.decideMovement(distance_hold, angle_hold)
-            self.client.publish("cc32xx/mapOut", '{"state": no goal found, "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+            self.client.publish("cc32xx/mapOut", '{"state": "no goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
         else:
             index = isGoal_hold.index(1)
             self.nav.currentMove = (angle_hold[index], distance_hold[index])
-            self.client.publish("cc32xx/mapOut", '{"state": goal found, "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+            self.client.publish("cc32xx/mapOut", '{"state": "goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
 
 if __name__ == "__main__":
     mt = MQTThandler()
