@@ -43,14 +43,16 @@ class Navigation:
             self.curState = 0                     #next state will be SEARCH_1
 
     def goal_found(self, input_vals):            #There should only be one state transition when the goal is found
-        self.goalFound = 1
-        self.roverReady = 0
-        self.prevAngle = self.curAngle
-        self.curAngle = input_vals["angle"]
-        self.prevDist = self.curDist
-        self.curDist = input_vals["distance"]
-        self.prevState = self.curState
-        self.curState = 2
+            self.goalFound = 1
+            self.roverReady = 0
+            self.prevAngle = self.curAngle
+            self.curAngle = input_vals["angle"]
+            self.prevDist = self.curDist
+            self.curDist = input_vals["distance"]
+            self.prevState = self.curState
+            self.curState = 2
+            if self.curDist < 200:
+                self.curState = 10
 
 class MQTThandler:
     def __init__(self):
@@ -83,7 +85,8 @@ class MQTThandler:
                 self.nav.no_goal_found(input_vals)
             else:
                 self.nav.goal_found(input_vals)
-            self.client.publish("cc32xx/navigation", '{"distance": '+str(self.nav.curDist)+', "angle" :'+str(self.nav.curAngle)+'}')
+            if self.nav.curState != 10:
+                self.client.publish("cc32xx/navigation", '{"distance": '+str(self.nav.curDist)+', "angle" :'+str(self.nav.curAngle)+'}')
             self.client.publish("TR/navScript", '{"curState": '+str(self.nav.curState)+', "prevState": '+str(self.nav.prevState)+', "RoverReady": '+str(self.nav.roverReady)+', "curAngle": '+str(self.nav.curAngle)+', "prevAngle": '+str(self.nav.prevAngle)+', "curDist": '+str(self.nav.curDist)+', "prevDist": '+str(self.nav.prevDist)+'}')
 
     def on_rover_message(self, client, userdata, message):
