@@ -82,8 +82,8 @@ class MQTThandler:
         print("map message recieved...")
         input_vals = json.loads(message.payload.decode('utf-8'))
         #print(input_vals)
-        self.reject_reading += 3
         if self.nav.roverReady == 1 and self.reject_reading % 3 != 0:
+            self.reject_reading += 1
             if input_vals["state"] == "no goal found":
                 self.nav.no_goal_found(input_vals)
             else:
