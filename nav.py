@@ -51,7 +51,7 @@ class Navigation:
             self.curDist = input_vals["distance"]
             self.prevState = self.curState
             self.curState = 2
-            if self.curDist < 200:
+            if self.curDist < 300:
                 self.curState = 10
 
 class MQTThandler:
@@ -61,12 +61,16 @@ class MQTThandler:
 
         self.send = 1
         self.reject_reading = 0
+        self.armFinished = 0
+        self.pillsLoaded = 0
         self.client.username_pw_set("dhnngvfj", "zhM1Ds0tjbnC")
         self.client.connect("m16.cloudmqtt.com", port=18367)
         self.client.on_connect = self.on_connect
         #self.client.on_message = self.on_message
         self.client.message_callback_add("cc32xx/mapOut", self.on_map_message)
         self.client.message_callback_add("cc32xx/RoverReady", self.on_rover_message)
+        self.client.message_callback_add("cc32xx/ARMStatus", self.on_arm_message)
+        self.client.message_callback_add("cc32xx/pillsLoaded", self.on_arm_message)
 
         self.client.loop_start()
         self.client.subscribe("cc32xx/#")
@@ -82,8 +86,9 @@ class MQTThandler:
         print("map message recieved...")
         input_vals = json.loads(message.payload.decode('utf-8'))
         #print(input_vals)
-        if self.nav.roverReady == 1 and self.reject_reading % 3 != 0:
+        if self.nav.roverReady == 1:
             self.reject_reading += 1
+        if self.pillsLoaded == 1 and self.armFinished == 1 and self.nav.roverReady == 1 and self.reject_reading % 2 == 0:
             if input_vals["state"] == "no goal found":
                 self.nav.no_goal_found(input_vals)
             else:
@@ -91,7 +96,8 @@ class MQTThandler:
             if self.nav.curState != 10:
                 if self.nav.curAngle > 180:
                     self.nav.curAngle = self.nav.curAngle - 360
-                self.client.publish("cc32xx/navigation", '{"distance": '+str(self.nav.curDist)+', "angle" :'+str(self.nav.curAngle)+'}')
+                if not (self.nav.curDist == 0 and self.nav.curAngle == 0):
+                    self.client.publish("cc32xx/navigation", '{"distance": '+str(self.nav.curDist)+', "angle" :'+str(self.nav.curAngle)+'}')
             self.client.publish("TR/navScript", '{"curState": '+str(self.nav.curState)+', "prevState": '+str(self.nav.prevState)+', "RoverReady": '+str(self.nav.roverReady)+', "curAngle": '+str(self.nav.curAngle)+', "prevAngle": '+str(self.nav.prevAngle)+', "curDist": '+str(self.nav.curDist)+', "prevDist": '+str(self.nav.prevDist)+'}')
 
     def on_rover_message(self, client, userdata, message):
@@ -101,6 +107,15 @@ class MQTThandler:
             self.nav.prevState = self.nav.curState
             self.nav.curState = 0
         self.client.publish("TR/navScript", '{"curState": '+str(self.nav.curState)+', "prevState": '+str(self.nav.prevState)+', "RoverReady": '+str(self.nav.roverReady)+', "curAngle": '+str(self.nav.curAngle)+', "prevAngle": '+str(self.nav.prevAngle)+', "curDist": '+str(self.nav.curDist)+', "prevDist": '+str(self.nav.prevDist)+'}')
+        self.client.publish("cc32xx/RoverMoving", "Rover moving")
+
+    def on_arm_message(self, client, userdata, message):
+        print("arm message received...")
+        self.armFinished = 1
+
+    def on_pills_message(self, client, userdata, message):
+        print("pills loaded, ready to move...")
+        self.pillsLoaded = 1
 
 if __name__ == "__main__":
     mt = MQTThandler()
