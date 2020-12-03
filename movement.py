@@ -8,20 +8,37 @@ import matplotlib.pyplot as plt
 def closest(lst, K): 
     return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))] 
 
+def get_index_positions(list_of_elems, element):
+    ''' Returns the indexes of all occurrences of give element in
+    the list- listOfElements '''
+    index_pos_list = []
+    index_pos = 0
+    while True:
+        try:
+            # Search for item in list from indexPos to the end of list
+            index_pos = list_of_elems.index(element, index_pos)
+            # Add the index position in list
+            index_pos_list.append(index_pos)
+            index_pos += 1
+        except ValueError as e:
+            break
+    return index_pos_list
+
+
 class Navigation:
     def __init__(self):
-        self.currentPos = (0,0)
+        self.flag = 1
         self.currentMove = (0,0)
-        self.goalPos = (10,30)
-        self.goalPosPolar = (180/np.pi*math.atan2(self.goalPos[1],self.goalPos[0]), math.sqrt((self.goalPos[0])**2 + (self.goalPos[1])**2))
-        print(self.goalPosPolar)
+        self.prevDist = []
+        self.prevAngle = []
+        self.prevGoal = []
+        self.goalPosPolar = (30, 0.5) #angle, distance
         self.angleVec = [-90, -60, -30, 0, 30, 60, 90]
         
-    def decideMovement(self, distance, angle):
+    def decideMovement(self, distance, angle, distancePrev, anglePrev):
         #THIS WILL DECIDE NEXT MOVE need to update currentPos, and curentMove
         maxD = max(distance)
         maxIndex = distance.index(maxD)
-        self.goalPosPolar = (180/np.pi*math.atan2(self.goalPos[1],(self.goalPos[0])), math.sqrt((self.goalPos[0])**2 + (self.goalPos[1])**2))
         angVal = closest(self.angleVec, self.goalPosPolar[0])
         angValInd = self.angleVec.index(angVal)
         testVec = []
@@ -39,17 +56,14 @@ class Navigation:
             distVec.append(distance[ind])
         
         minVal = min(distVec)
-        print(minVal)
         maxVal = max(distVec)
-        print(maxVal)
         if minVal > 0.8*maxVal:
-            self.currentMove = (angle[maxIndex], distance[maxIndex])
+            self.currentMove = (min(angle[maxIndex], anglePrev[maxIndex]), 0.7*min(distance[maxIndex], distancePrev[maxIndex]))
         elif distance[angValInd] > 0.9*maxVal:
-            self.currentMove = (angle[angValInd], distance[angValInd])
+            self.currentMove = (min(angle[angValInd], anglePrev[angValInd]), 0.7*min(distance[angValInd], distancePrev[angValInd]))
         else:
             maxTestInd = distance.index(maxVal)
-            self.currentMove = (angle[maxTestInd], distance[maxTestInd])
-        #self.currentPos = (self.currentMove[1]*math.cos(math.pi/180*self.currentMove[0]),self.currentMove[1]*math.sin(math.pi/180*self.currentMove[0]))
+            self.currentMove = (min(angle[maxTestInd], anglePrev[maxTestInd]), 0.7*min(distance[maxTestInd], distancePrev[maxTestInd]))
 
 
     
@@ -83,13 +97,43 @@ class MQTThandler:
         distance_hold = [angle_val["d0"], angle_val["d30"], angle_val["d60"], angle_val["d90"], angle_val["d120"], angle_val["d150"], angle_val["d180"]]
         isGoal_hold = [angle_val["isG0"], angle_val["isG30"], angle_val["isG60"], angle_val["isG90"], angle_val["isG120"], angle_val["isG150"], angle_val["isG180"]]
         angle_hold = [angle_val["ang0"], angle_val["ang30"], angle_val["ang60"], angle_val["ang90"], angle_val["ang120"], angle_val["ang150"], angle_val["ang1800"]]
-        if sum(isGoal_hold) == 0:
-            self.nav.decideMovement(distance_hold, angle_hold)
-            self.client.publish("cc32xx/mapOut", '{"state": "no goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+        if not self.nav.flag:
+            if self.nav.prevDist:
+                if sum(isGoal_hold) == 0:
+                    self.nav.decideMovement(distance_hold, angle_hold, self.nav.prevDist, self.nav.prevAngle)
+                    self.client.publish("cc32xx/mapOut", '{"state": "no goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+                elif sum(isGoal_hold) > 1:
+                    indVals = get_index_positions(isGoal_hold, 1)
+                    minVal = 4000
+                    for ind in indVals:
+                        minVal = min(minVal, distance_hold[ind], self.nav.prevDist[ind])
+                    if abs(angle_hold[indVals[0]] - angle_hold[indVals[1]]) < 10:
+                        angle = (angle_hold[indVals[0]] + angle_hold[indVals[1]] + self.nav.prevAngle[indVals[0]]+ self.nav.prevAngle[indVals[1]])/4
+                        distance = (distance_hold[indVals[0]] + distance_hold[indVals[1]] + self.nav.prevDist[indVals[0]] + self.nav.prevDist[indVals[1]])/4
+                        self.nav.currentMove = (angle, 0.7*distance)
+                        self.client.publish("cc32xx/mapOut", '{"state": "goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+                    elif minVal < 200:
+                        self.nav.currentMove = (0, minVal)
+                        self.client.publish("cc32xx/mapOut", '{"state": "goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+                    else:
+                        self.nav.decideMovement(distance_hold, angle_hold, self.nav.prevDist, self.nav.prevAngle)
+                        self.client.publish("cc32xx/mapOut", '{"state": "multiple goals", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+                else:
+                    index = isGoal_hold.index(1)
+                    angle = min(angle_hold[index], self.nav.prevAngle[index])
+                    distance = min(distance_hold[index] , self.nav.prevDist[index])
+                    self.nav.currentMove = (angle, 0.7*distance)
+                    self.client.publish("cc32xx/mapOut", '{"state": "goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+                self.nav.prevDist = []
+                self.nav.prevAngle = []
+                self.nav.prevGoal = []
+            else:
+                self.nav.prevDist = distance_hold
+                self.nav.prevAngle = angle_hold
+                self.nav.prevGoal = isGoal_hold
+
         else:
-            index = isGoal_hold.index(1)
-            self.nav.currentMove = (angle_hold[index], distance_hold[index])
-            self.client.publish("cc32xx/mapOut", '{"state": "goal found", "distance": '+str(self.nav.currentMove[1])+', "angle":'+str(self.nav.currentMove[0])+'}')
+            self.nav.flag = 0
 
 if __name__ == "__main__":
     mt = MQTThandler()
