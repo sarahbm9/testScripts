@@ -28,6 +28,7 @@ def get_index_positions(list_of_elems, element):
 class Navigation:
     def __init__(self):
         self.flag = 1
+        self.RoverReady = 1
         self.currentMove = (0,0)
         self.prevDist = []
         self.prevAngle = []
@@ -41,7 +42,21 @@ class Navigation:
         maxIndex = distance.index(maxD)
         angVal = closest(self.angleVec, self.goalPosPolar[0])
         angValInd = self.angleVec.index(angVal)
-        testVec = []
+        print(distance[angValInd])  
+        print(distancePrev[angValInd])  
+        if distance[angValInd] < 500 or distancePrev[angValInd] < 500:
+            if angValInd == 0:
+                self.currentMove = (min(angle[angValInd +1], anglePrev[angValInd + 1]), min(distance[angValInd +1], distancePrev[angValInd + 1]))
+            elif angValInd == len(self.angleVec):
+                self.currentMove = (min(angle[angValInd -1], anglePrev[angValInd - 1]), min(distance[angValInd -1], distancePrev[angValInd - 1]))
+            else:
+                self.currentMove = (min(min(angle[angValInd -1], anglePrev[angValInd - 1]),min(angle[angValInd +1], anglePrev[angValInd + 1])), min(min(distance[angValInd -1], distancePrev[angValInd - 1]),min(distance[angValInd +1], distancePrev[angValInd + 1])))
+
+        else:
+            print("HIIII")
+            self.currentMove = (self.angleVec[angValInd], 500)
+
+        '''testVec = []
         distVec = []
         testVec.append(angValInd)
         if angVal == 0:
@@ -64,7 +79,7 @@ class Navigation:
         else:
             maxTestInd = distance.index(maxVal)
             self.currentMove = (min(angle[maxTestInd], anglePrev[maxTestInd]), 0.7*min(distance[maxTestInd], distancePrev[maxTestInd]))
-
+'''
 
     
 
@@ -77,11 +92,17 @@ class MQTThandler:
         self.client.username_pw_set("dhnngvfj", "zhM1Ds0tjbnC")
         self.client.connect("m16.cloudmqtt.com", port=18367)
         self.client.on_connect = self.on_connect
-        self.client.on_message = self.on_message
+        #self.client.on_message = self.on_message
+        self.client.message_callback_add("cc32xx/sMsg", self.on_message)
+        self.client.message_callback_add("cc32xx/RoverReady", self.on_rover_message)
+        self.client.message_callback_add("cc32xx/RoverMoving", self.on_move_message)
 
         self.client.loop_start()
-        self.client.subscribe("cc32xx/sMsg")
-
+        self.client.subscribe("cc32xx/#")
+    def on_rover_message(self, client, userdata,message):
+        self.nav.roverReady = 1
+    def on_move_message(self, client, userdata, message):
+        self.nav.roverReady = 0
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             print("connected to broker")
@@ -97,7 +118,13 @@ class MQTThandler:
         distance_hold = [angle_val["d0"], angle_val["d30"], angle_val["d60"], angle_val["d90"], angle_val["d120"], angle_val["d150"], angle_val["d180"]]
         isGoal_hold = [angle_val["isG0"], angle_val["isG30"], angle_val["isG60"], angle_val["isG90"], angle_val["isG120"], angle_val["isG150"], angle_val["isG180"]]
         angle_hold = [angle_val["ang0"], angle_val["ang30"], angle_val["ang60"], angle_val["ang90"], angle_val["ang120"], angle_val["ang150"], angle_val["ang1800"]]
-        if not self.nav.flag:
+        angle_hold2 = []
+        for ang in angle_hold:
+            if ang < 0:
+                ang = ang + 360
+            angle_hold2.append(ang)
+        angle_hold = angle_hold2
+        if not self.nav.flag and self.nav.RoverReady:
             if self.nav.prevDist:
                 if sum(isGoal_hold) == 0:
                     self.nav.decideMovement(distance_hold, angle_hold, self.nav.prevDist, self.nav.prevAngle)
@@ -107,7 +134,10 @@ class MQTThandler:
                     minVal = 4000
                     for ind in indVals:
                         minVal = min(minVal, distance_hold[ind], self.nav.prevDist[ind])
-                    if abs(angle_hold[indVals[0]] - angle_hold[indVals[1]]) < 10:
+                    #print(angle_hold[indVals[0]])
+                    #print(angle_hold[indVals[1]])
+                    print(abs(angle_hold[indVals[0]] - angle_hold[indVals[1]]))
+                    if abs(angle_hold[indVals[0]] - angle_hold[indVals[1]]) < 15:
                         angle = (angle_hold[indVals[0]] + angle_hold[indVals[1]] + self.nav.prevAngle[indVals[0]]+ self.nav.prevAngle[indVals[1]])/4
                         distance = (distance_hold[indVals[0]] + distance_hold[indVals[1]] + self.nav.prevDist[indVals[0]] + self.nav.prevDist[indVals[1]])/4
                         self.nav.currentMove = (angle, 0.7*distance)
