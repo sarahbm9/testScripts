@@ -59,6 +59,8 @@ class MQTThandler:
         self.client = mqtt.Client()
         self.nav = Navigation()
 
+        self.send = 1
+        self.reject_reading = 0
         self.client.username_pw_set("dhnngvfj", "zhM1Ds0tjbnC")
         self.client.connect("m16.cloudmqtt.com", port=18367)
         self.client.on_connect = self.on_connect
@@ -80,12 +82,18 @@ class MQTThandler:
         print("map message recieved...")
         input_vals = json.loads(message.payload.decode('utf-8'))
         #print(input_vals)
-        if self.nav.roverReady == 1:
+        if self.nav.prevState == 1:
+            self.reject_reading = 1
+        else:
+            self.reject_reading = 0
+        if self.nav.roverReady == 1 and not self.reject_reading == 1:
             if input_vals["state"] == "no goal found":
                 self.nav.no_goal_found(input_vals)
             else:
                 self.nav.goal_found(input_vals)
             if self.nav.curState != 10:
+                if self.nav.curAngle > 180:
+                    self.nav.curAngle = self.nav.curAngle - 360
                 self.client.publish("cc32xx/navigation", '{"distance": '+str(self.nav.curDist)+', "angle" :'+str(self.nav.curAngle)+'}')
             self.client.publish("TR/navScript", '{"curState": '+str(self.nav.curState)+', "prevState": '+str(self.nav.prevState)+', "RoverReady": '+str(self.nav.roverReady)+', "curAngle": '+str(self.nav.curAngle)+', "prevAngle": '+str(self.nav.prevAngle)+', "curDist": '+str(self.nav.curDist)+', "prevDist": '+str(self.nav.prevDist)+'}')
 
